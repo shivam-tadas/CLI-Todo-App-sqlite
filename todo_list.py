@@ -1,60 +1,60 @@
-import json
+import sqlite3
+
+def get_int_input(prompt: str) -> int:
+    while True:
+        try:
+            return int(input(prompt))
+        except ValueError:
+            print("Please enter a valid number:", end=' ')
 
 class TodoList:
-    todos: list[str]
-
     def __init__(self):
-        self.todos = []
-
+        self.conn = sqlite3.connect("todos.db")
+        self.cursor = self.conn.cursor()
+        self.cursor.execute("CREATE TABLE IF NOT EXISTS todos (id INTEGER PRIMARY KEY, task TEXT)")
+        
     def add_todo(self, todo: str) -> None:
-        self.todos.append(todo)
+        self.cursor.execute("INSERT INTO todos (task) VALUES (?)", (todo,))
+        self.conn.commit()
 
-    def mark_todo_as_done(self, todo_no: int) -> None:
-        del self.todos[todo_no - 1]
+    def mark_todo_as_done(self, task_id: int) -> None:
+        self.cursor.execute("SELECT id FROM todos WHERE id = ?", (task_id,))
+        row = self.cursor.fetchone()
+        if row is None:
+            print("Task not found")
+        else:
+            self.cursor.execute("DELETE FROM todos WHERE id = ?", (task_id,))
+            self.conn.commit()
 
     def show_todos(self) -> None:
         print("To-do list")
-        print("---")
-        for i, todo in enumerate(self.todos):
-            print(i+1, ": ", todo, sep='')
-        print("---")
+        self.cursor.execute("SELECT * FROM todos")
+        rows = self.cursor.fetchall()
+        for id, task in rows:
+            print(f"{id}: {task}")
 
 print("Welcome to CLI To-dos list")
 todo_list = TodoList()
-
-try:
-    with open("todos.json", "r") as fp:
-        todo_list.todos = json.load(fp)
-except (FileNotFoundError, json.JSONDecodeError):
-    todo_list.todos = []
 
 while True:
     print("\n1. Show todos")
     print("2. Add a task")
     print("3. Mark a task as done")
     print("4. Exit")
-    print("Make a choice:", end=' ')
-    choice = int(input())
+    
+    choice = get_int_input("Make a choice: ")
+    
     if choice == 1:
         todo_list.show_todos()
     elif choice == 2:
         print("Enter task to be added:", end=' ')
         todo_task = input()
         todo_list.add_todo(todo_task)
-        print(f"Task {todo_task} added")
-        with open("todos.json", "w") as fp:
-            json.dump(todo_list.todos, fp)
     elif choice == 3:
-        print("Enter task number to be marked as done:", end=' ')
-        task_no = int(input())
-        if task_no > len(todo_list.todos):
-            print("Enter a valid task number")
-        else:
-            todo_list.mark_todo_as_done(task_no)
-            print(f"Task {task_no} marked as done")
-        with open("todos.json", "w") as fp:
-            json.dump(todo_list.todos, fp)
+        task_id = get_int_input("Enter id of task to be marked as done: ")
+        todo_list.mark_todo_as_done(task_id)
     elif choice == 4:
+        todo_list.conn.close()
         break
     else:
         print("Please input a valid choice")
